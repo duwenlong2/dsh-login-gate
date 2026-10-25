@@ -1,7 +1,7 @@
 // cordis 插件：接管 webServer 的所有路由，先过门禁再交给 Harness
 import { createGate } from './gate.js';
 
-export const name = 'dsh-login-gate';
+export const name = 'dsh-auth-gate';
 export const inject = ['webServer'];
 
 const MARK = Symbol.for('dsh-auth-gate.wrapped');

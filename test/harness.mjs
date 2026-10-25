@@ -141,6 +141,43 @@ check('正确密码 → 302 + cookie', r.status === 302 && cookie.startsWith('ds
 r = await fetch(base + '/', { headers: { cookie: 'dsh_gate=bad.value' }, redirect: 'manual' });
 check('伪造 cookie → 拒绝', r.status === 401 || r.status === 302);
 
+console.log('— 设置页接口 —');
+r = await fetch(base + '/__auth/session-info', { headers: { cookie } });
+let si = await r.json();
+check('会话信息：天数 7', r.status === 200 && si.ok === true && si.sessionDays === 7, JSON.stringify(si));
+check('会话信息：剩余天数约 7', si.remainingDays > 6.9 && si.remainingDays <= 7);
+
+r = await fetch(base + '/__auth/session-info');
+check('未登录读会话信息 → 401', r.status === 401);
+
+r = await post('/__auth/session-days', 'days=14', { cookie });
+let sd = await r.json();
+check('改有效期 14 天 → ok', r.status === 200 && sd.sessionDays === 14);
+r = await fetch(base + '/__auth/session-info', { headers: { cookie } });
+si = await r.json();
+check('会话信息读到 14 天', si.sessionDays === 14);
+
+r = await post('/__auth/session-days', 'days=99', { cookie });
+check('有效期越界 → 400', r.status === 400);
+
+r = await post('/__auth/password', 'current=wrong&next=NewPass%232026&confirm=NewPass%232026', { cookie });
+check('改密码：当前密码错 → 401', r.status === 401);
+
+r = await post('/__auth/password', `current=${encodeURIComponent(PW)}&next=abc&confirm=abc`, { cookie });
+check('改密码：新密码太短 → 400', r.status === 400);
+
+r = await post('/__auth/password', `current=${encodeURIComponent(PW)}&next=NewPass%232026&confirm=other`, { cookie });
+check('改密码：两次不一致 → 400', r.status === 400);
+
+r = await post('/__auth/password', `current=${encodeURIComponent(PW)}&next=NewPass%232026&confirm=NewPass%232026`, { cookie });
+const newCookie = (r.headers.get('set-cookie') || '').split(';')[0];
+check('改密码成功 → 200 + 新 cookie', r.status === 200 && newCookie.startsWith('dsh_gate='));
+
+r = await fetch(base + '/', { headers: { cookie }, redirect: 'manual' });
+check('旧会话已失效', r.status === 401 || r.status === 302);
+r = await fetch(base + '/', { headers: { cookie: newCookie } });
+check('新会话可用', r.status === 200);
+
 console.log('— 其它 —');
 r = await fetch(base + '/__auth/health');
 const health = await r.json();

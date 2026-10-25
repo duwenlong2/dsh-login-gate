@@ -28,33 +28,45 @@ export function loadState() {
       hash: Buffer.from(s.hash, 'base64'),
       salt: Buffer.from(s.salt, 'base64'),
       secret: Buffer.from(s.secret, 'base64'),
+      sessionDays: typeof s.sessionDays === 'number' ? s.sessionDays : undefined,
+      createdAt: s.createdAt,
     };
   } catch {
     return null;
   }
 }
 
-/** 写入新密码：scrypt 派生 + DPAPI 加密落盘 */
-export function writeState(password) {
-  const salt = randomBytes(16);
-  const hash = scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 });
-  const secret = randomBytes(32);
+/** 把内存里的状态重新加密落盘 */
+export function saveState(state) {
   const blob = Buffer.from(JSON.stringify({
     v: 1,
-    hash: hash.toString('base64'),
-    salt: salt.toString('base64'),
-    secret: secret.toString('base64'),
-    createdAt: new Date().toISOString(),
+    hash: state.hash.toString('base64'),
+    salt: state.salt.toString('base64'),
+    secret: state.secret.toString('base64'),
+    sessionDays: state.sessionDays,
+    createdAt: state.createdAt,
   }), 'utf8');
-  const enc = protect(blob);
   const file = statePath();
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, enc, { mode: 0o600 });
+  writeFileSync(file, protect(blob), { mode: 0o600 });
   return file;
 }
 
+/** 写入新密码：scrypt 派生 + DPAPI 加密落盘 */
+export function writeState(password, sessionDays) {
+  const salt = randomBytes(16);
+  return saveState({
+    hash: scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1 }),
+    salt,
+    secret: randomBytes(32),
+    sessionDays,
+    createdAt: new Date().toISOString(),
+  });
+}
+
 /** 读取 DSH 自己的 browser-session secret，用来代签它认的 cookie */
-export function loadDshSecret() {  const file = join(dshHome(), '.credentials.yaml');
+export function loadDshSecret() {
+  const file = join(dshHome(), '.credentials.yaml');
   const raw = readFileSync(file, 'utf8');
   const m = raw.match(/client-connection\/browser-session:[\s\S]*?secret:\s*([A-Za-z0-9_-]+)/);
   if (!m) throw new Error('auth-gate: .credentials.yaml 里找不到 browser-session secret');
@@ -165,9 +177,15 @@ export function createGate({ config = {}, logger = console, getAuthority }) {
     return got.length === st.hash.length && timingSafeEqual(got, st.hash);
   }
 
+  /** 会话有效期：状态文件里的覆盖值优先，否则用配置 */
+  function effectiveDays() {
+    const st = getState();
+    return st && typeof st.sessionDays === 'number' ? st.sessionDays : sessionDays;
+  }
+
   function sessionValue() {
     const st = getState();
-    const payload = { v: 1, exp: Date.now() + sessionDays * 86400000 };
+    const payload = { v: 1, exp: Date.now() + effectiveDays() * 86400000 };
     const body = B64U(JSON.stringify(payload));
     const sig = B64U(createHmac('sha256', st.secret).update(body).digest());
     return `${body}.${sig}`;
@@ -182,24 +200,29 @@ export function createGate({ config = {}, logger = console, getAuthority }) {
     return '';
   }
 
-  function isAuthenticated(req) {
+  /** 解出会话载荷（验签 + 未过期），失败返回 null */
+  function readSession(req) {
     const st = getState();
-    if (!st) return false;
+    if (!st) return null;
     const token = readCookie(req.headers.cookie);
     const i = token.lastIndexOf('.');
-    if (i < 1) return false;
+    if (i < 1) return null;
     const body = token.slice(0, i);
     const sig = token.slice(i + 1);
     const expect = B64U(createHmac('sha256', st.secret).update(body).digest());
     const a = Buffer.from(sig);
     const b = Buffer.from(expect);
-    if (a.length !== b.length || !timingSafeEqual(a, b)) return false;
+    if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
     try {
       const p = JSON.parse(Buffer.from(body.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
-      return typeof p.exp === 'number' && p.exp > Date.now();
+      return typeof p.exp === 'number' && p.exp > Date.now() ? p : null;
     } catch {
-      return false;
+      return null;
     }
+  }
+
+  function isAuthenticated(req) {
+    return readSession(req) !== null;
   }
 
   const fails = new Map();
@@ -306,6 +329,58 @@ ${error ? `<div class="err">${error}</div>` : ''}
       res.end(JSON.stringify({ ok: true, protected: true, hasPassword: !!getState() }));
       return true;
     }
+
+    const json = (code, obj, extra = {}) => {
+      res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store', ...extra });
+      res.end(JSON.stringify(obj));
+      return true;
+    };
+
+    if (pathname === '/__auth/session-info') {
+      const s = readSession(req);
+      if (!s) return json(401, { ok: false, error: 'unauthorized' });
+      const days = effectiveDays();
+      const ms = s.exp - Date.now();
+      return json(200, {
+        ok: true,
+        expiresAt: s.exp,
+        sessionDays: days,
+        remainingDays: Math.max(0, Math.round((ms / 86400000) * 10) / 10),
+        hasPassword: !!getState(),
+        allowLocal,
+      });
+    }
+
+    if (pathname === '/__auth/password' && req.method === 'POST') {
+      if (!readSession(req)) return json(401, { ok: false, error: 'unauthorized' });
+      const body = new URLSearchParams(await readBody(req));
+      const current = body.get('current') || '';
+      const next = body.get('next') || '';
+      const confirm = body.get('confirm') || '';
+      if (!verifyPassword(current)) return json(401, { ok: false, error: 'current' });
+      if (next.length < 6) return json(400, { ok: false, error: 'short' });
+      if (next !== confirm) return json(400, { ok: false, error: 'mismatch' });
+      const days = effectiveDays();
+      writeState(next, days);
+      state = null;
+      stateAt = 0;
+      const secure = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+      const cookie = `${COOKIE}=${sessionValue()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${days * 86400}${secure ? '; Secure' : ''}`;
+      return json(200, { ok: true, sessionDays: days }, { 'set-cookie': cookie });
+    }
+
+    if (pathname === '/__auth/session-days' && req.method === 'POST') {
+      if (!readSession(req)) return json(401, { ok: false, error: 'unauthorized' });
+      const body = new URLSearchParams(await readBody(req));
+      const days = Number(body.get('days'));
+      if (!Number.isInteger(days) || days < 1 || days > 30) return json(400, { ok: false, error: 'range' });
+      const st = getState();
+      st.sessionDays = days;
+      saveState(st);
+      state = st;
+      stateAt = Date.now();
+      return json(200, { ok: true, sessionDays: days });
+    }
     if (pathname === '/__auth/setup') {
       if (getState()) {
         res.writeHead(302, { location: '/__auth/login', 'cache-control': 'no-store' });
@@ -329,7 +404,7 @@ ${error ? `<div class="err">${error}</div>` : ''}
         if (pw.length < 6) { send(res, 400, PAGE(title, setupBody('密码至少 6 位。'))); return true; }
         if (pw !== cf) { send(res, 400, PAGE(title, setupBody('两次输入不一致。'))); return true; }
         try {
-          writeState(pw);
+          writeState(pw, sessionDays);
           state = null;
           stateAt = 0;
         } catch (e) {
@@ -337,7 +412,7 @@ ${error ? `<div class="err">${error}</div>` : ''}
           return true;
         }
         const secure = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
-        const cookie = `${COOKIE}=${sessionValue()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionDays * 86400}${secure ? '; Secure' : ''}`;
+        const cookie = `${COOKIE}=${sessionValue()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${effectiveDays() * 86400}${secure ? '; Secure' : ''}`;
         res.writeHead(302, { location: '/', 'set-cookie': cookie, 'cache-control': 'no-store' });
         res.end();
         return true;
@@ -371,7 +446,7 @@ ${error ? `<div class="err">${error}</div>` : ''}
       }
       fails.delete(ip);
       const secure = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
-      const cookie = `${COOKIE}=${sessionValue()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionDays * 86400}${secure ? '; Secure' : ''}`;
+      const cookie = `${COOKIE}=${sessionValue()}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${effectiveDays() * 86400}${secure ? '; Secure' : ''}`;
       const next = new URL(req.url || '/', 'http://x').searchParams.get('next');
       const to = next && next.startsWith('/') && !next.startsWith('//') ? next : '/';
       res.writeHead(302, { location: to, 'set-cookie': cookie, 'cache-control': 'no-store' });
