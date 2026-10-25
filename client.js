@@ -105,7 +105,7 @@ window.__ModuleLoader__.load({
           .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
           .then(({ ok, j }) => {
             if (!ok) setErr('有效期需在 1–30 天之间');
-            else { setOk('已保存，新登录按这个时长计算'); load(); }
+            else { setOk('已保存，当前会话已按新时长续期'); load(); }
           })
           .catch(() => setErr('请求失败'))
           .finally(() => setBusy(false));
@@ -153,7 +153,7 @@ window.__ModuleLoader__.load({
 
         h('div', { style: S.card },
           h('div', { style: { fontWeight: 600, marginBottom: 2 } }, '会话有效期'),
-          h('div', { style: S.hint }, '登录后多少天内免输密码（1–30 天）。对之后的新登录生效。'),
+          h('div', { style: S.hint }, '登录后多少天内免输密码（1–30 天）。保存后当前会话立即续期。'),
           h('div', { style: { marginTop: 10, display: 'flex', gap: 10, alignItems: 'center' } },
             h('input', {
               type: 'number', min: 1, max: 30, value: days,

@@ -153,9 +153,12 @@ check('未登录读会话信息 → 401', r.status === 401);
 r = await post('/__auth/session-days', 'days=14', { cookie });
 let sd = await r.json();
 check('改有效期 14 天 → ok', r.status === 200 && sd.sessionDays === 14);
-r = await fetch(base + '/__auth/session-info', { headers: { cookie } });
+const daysCookie = (r.headers.get('set-cookie') || '').split(';')[0];
+check('改有效期立即重发 cookie', daysCookie.startsWith('dsh_gate='));
+r = await fetch(base + '/__auth/session-info', { headers: { cookie: daysCookie } });
 si = await r.json();
 check('会话信息读到 14 天', si.sessionDays === 14);
+check('剩余天数立即刷新到 14', si.remainingDays > 13.9 && si.remainingDays <= 14, String(si.remainingDays));
 
 r = await post('/__auth/session-days', 'days=99', { cookie });
 check('有效期越界 → 400', r.status === 400);

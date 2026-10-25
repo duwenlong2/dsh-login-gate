@@ -183,9 +183,10 @@ export function createGate({ config = {}, logger = console, getAuthority }) {
     return st && typeof st.sessionDays === 'number' ? st.sessionDays : sessionDays;
   }
 
-  function sessionValue() {
+  function sessionValue(daysOverride) {
     const st = getState();
-    const payload = { v: 1, exp: Date.now() + effectiveDays() * 86400000 };
+    const d = typeof daysOverride === 'number' ? daysOverride : effectiveDays();
+    const payload = { v: 1, exp: Date.now() + d * 86400000 };
     const body = B64U(JSON.stringify(payload));
     const sig = B64U(createHmac('sha256', st.secret).update(body).digest());
     return `${body}.${sig}`;
@@ -379,7 +380,10 @@ ${error ? `<div class="err">${error}</div>` : ''}
       saveState(st);
       state = st;
       stateAt = Date.now();
-      return json(200, { ok: true, sessionDays: days });
+      // 立即续期：当前会话也按新时长重签，界面上的剩余天数会马上刷新
+      const secure = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() === 'https';
+      const cookie = `${COOKIE}=${sessionValue(days)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${days * 86400}${secure ? '; Secure' : ''}`;
+      return json(200, { ok: true, sessionDays: days, expiresAt: Date.now() + days * 86400000 }, { 'set-cookie': cookie });
     }
     if (pathname === '/__auth/setup') {
       if (getState()) {

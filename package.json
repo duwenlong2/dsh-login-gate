@@ -1,33 +1,33 @@
 {
-  "name": "dsh-login-gate",
-  "version": "0.2.0",
-  "description": "Password gate for the DSH web listener: every request must authenticate before the Harness answers",
-  "type": "module",
-  "main": "index.js",
-  "exports": {
-    ".": "./index.js",
-    "./client": "./client.js"
-  },
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "immediately": true,
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-settings-general"
-      ]
-    }
-  },
-  "files": [
-    "index.js",
-    "gate.js",
-    "client.js",
-    "dpapi.js",
-    "cordis.patch.yml"
-  ],
-  "engines": {
-    "node": ">=20"
-  }
+    "name":  "dsh-login-gate",
+    "version":  "0.2.1",
+    "description":  "Password gate for the DSH web listener: every request must authenticate before the Harness answers",
+    "type":  "module",
+    "main":  "index.js",
+    "exports":  {
+                    ".":  "./index.js",
+                    "./client":  "./client.js"
+                },
+    "dsh":  {
+                "bundle":  {
+                               "patch":  "./cordis.patch.yml"
+                           },
+                "client":  {
+                               "platform":  "web",
+                               "immediately":  true,
+                               "inject":  [
+                                              "@deepseek-ai/dsh-client-ui-settings-general"
+                                          ]
+                           }
+            },
+    "files":  [
+                  "index.js",
+                  "gate.js",
+                  "client.js",
+                  "dpapi.js",
+                  "cordis.patch.yml"
+              ],
+    "engines":  {
+                    "node":  "\u003e=20"
+                }
 }
