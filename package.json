@@ -1,0 +1,50 @@
+{
+  "name": "dsh-auth-gate",
+  "version": "0.1.0",
+  "description": "Password gate for the DeepSeek Harness web listener: every request must authenticate before the Harness answers",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "author": "杜文龙",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/duwenlong2/dsh-auth-gate.git"
+  },
+  "homepage": "https://github.com/duwenlong2/dsh-auth-gate#readme",
+  "bugs": {
+    "url": "https://github.com/duwenlong2/dsh-auth-gate/issues"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "auth",
+    "login",
+    "gate",
+    "self-hosted"
+  ],
+  "files": [
+    "index.js",
+    "gate.js",
+    "dpapi.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node test/harness.mjs",
+    "preview": "node test/preview.mjs",
+    "setup": "node setup.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "os": [
+    "win32"
+  ]
+}

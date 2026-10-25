@@ -1,0 +1,15 @@
+# dsh-auth-gate bundle patch
+# Inserts one Host plugin row. Config is read by the plugin on activation.
+- insert:
+    - id: auth-gate
+      name: 'dsh-auth-gate'
+      config:
+        # true 时本机 loopback 直连免登录；false 时所有连接都要密码
+        allowLocal: false
+        # 会话有效期（天）
+        sessionDays: 7
+        # 连续失败次数与锁定时长（分钟）
+        maxFails: 5
+        lockMinutes: 10
+        # 登录页标题
+        title: 'DSH · 安全入口'

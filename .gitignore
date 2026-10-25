@@ -1,0 +1,23 @@
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+
+# 本地配置：绝不能提交
+config.json
+*.local.json
+
+# 密码状态文件（如果误放进本目录）
+auth-gate.dat
+*.dat
+
+# 日志
+*.log
+tunnel.log
+tunnel.out.log
+
+# 编辑器
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
