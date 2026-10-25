@@ -32,6 +32,17 @@
 
 需要 **Windows**（DPAPI）和 **Node 20+**。
 
+### 方式一：插件中心（推荐，不用命令行）
+
+```
+设置 → 插件中心 → 添加插件 → 安装第三方插件
+输入本地目录路径（或 GitHub 仓库地址）
+```
+
+支持三种来源：**npm 包名 / GitHub 仓库 / 本地目录**，装完自动写 `package.json` 和 `bundles`。
+
+### 方式二：命令行
+
 ```powershell
 # 1. 把插件装进 web profile
 dsh plugin --profile web add file:C:\path\to\dsh-login-gate
@@ -140,10 +151,24 @@ Remove-Item "$env:USERPROFILE\.dsh\auth-gate.dat"
 
 ## 卸载
 
+### 方式一：插件中心（推荐）
+
+```
+设置 → 插件中心 → 已安装 → 找到 dsh-login-gate → 卸载
+```
+
+确认后会自动清理 `package.json`、`bundles` 和 `node_modules`，重启即生效。
+
+### 方式二：命令行
+
 ```powershell
-# 1. 从 package.json 的 dsh.profile.bundles 里删掉 "dsh-login-gate"
-# 2. 重启 DSH
-# 3. 可选：删掉密码文件
+dsh plugin --profile web remove dsh-login-gate
+# 再从 package.json 的 dsh.profile.bundles 里删掉 "dsh-login-gate"
+```
+
+### 可选：清掉密码文件
+
+```powershell
 Remove-Item "$env:USERPROFILE\.dsh\auth-gate.dat" -ErrorAction SilentlyContinue
 ```
 
