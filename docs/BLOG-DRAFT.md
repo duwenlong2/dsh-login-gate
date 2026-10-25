@@ -4,12 +4,12 @@
 > 起因很简单——我把 DSH 挂到了内网穿透上，然后意识到：**谁知道那个网址，谁就能用我的机器。**
 > 这篇记录整个过程：为什么不能加中间件、最后怎么绕过去、以及第一版被用户骂回来之后的重做。
 
-## 关于 dsh-auth-gate 开源项目
+## 关于 dsh-login-gate 开源项目
 
-这是配套这个插件的开源仓库 [**dsh-auth-gate**](https://github.com/duwenlong2/dsh-auth-gate)（MIT）：
+这是配套这个插件的开源仓库 [**dsh-login-gate**](https://github.com/duwenlong2/dsh-login-gate)（MIT）：
 
 ```
-dsh-auth-gate/
+dsh-login-gate/
 ├─ index.js          ← cordis 插件：包装 DSH 的路由表
 ├─ gate.js           ← 门禁核心：会话 / 密码 / 页面 / 限流
 ├─ dpapi.js          ← Windows DPAPI 封装
@@ -31,7 +31,7 @@ dsh-auth-gate/
 一个插件 + 三个文件，在进程内把请求拦下来：
 
 ```
-浏览器 ──▶ DSH :3080 ──▶ [dsh-auth-gate] ──▶ Harness
+浏览器 ──▶ DSH :3080 ──▶ [dsh-login-gate] ──▶ Harness
                               │
                               ├─ 未登录：302 登录页（HTML）/ 401（API）
                               └─ 已登录：补 DSH cookie + 重写 Host → 原 handler

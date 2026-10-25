@@ -1,4 +1,4 @@
-# dsh-auth-gate
+# dsh-login-gate
 
 给 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的网页入口加一道密码。
 
@@ -31,7 +31,7 @@
 
 ```powershell
 # 1. 把插件装进 web profile
-dsh plugin --profile web add file:C:\path\to\dsh-auth-gate
+dsh plugin --profile web add file:C:\path\to\dsh-login-gate
 
 # 2. 让 bundle 生效
 #    编辑 %USERPROFILE%\.dsh\profiles\web\package.json
@@ -47,7 +47,7 @@ dsh plugin --profile web add file:C:\path\to\dsh-auth-gate
       "bundles": [
         "@deepseek-ai/dsh-base",
         "@deepseek-ai/dsh-web-app",
-        "dsh-auth-gate"
+        "dsh-login-gate"
       ]
     }
   }
@@ -58,7 +58,7 @@ dsh plugin --profile web add file:C:\path\to\dsh-auth-gate
 
 > 从 GitHub 安装也可以：
 > ```powershell
-> dsh plugin --profile web add github:duwenlong2/dsh-auth-gate
+> dsh plugin --profile web add github:duwenlong2/dsh-login-gate
 > ```
 
 ---
@@ -123,7 +123,7 @@ Remove-Item "$env:USERPROFILE\.dsh\auth-gate.dat"
 ## 卸载
 
 ```powershell
-# 1. 从 package.json 的 dsh.profile.bundles 里删掉 "dsh-auth-gate"
+# 1. 从 package.json 的 dsh.profile.bundles 里删掉 "dsh-login-gate"
 # 2. 重启 DSH
 # 3. 可选：删掉密码文件
 Remove-Item "$env:USERPROFILE\.dsh\auth-gate.dat" -ErrorAction SilentlyContinue
@@ -137,7 +137,7 @@ Remove-Item "$env:USERPROFILE\.dsh\auth-gate.dat" -ErrorAction SilentlyContinue
 
 ```yaml
 - id: auth-gate
-  name: 'dsh-auth-gate'
+  name: 'dsh-login-gate'
   config:
     allowLocal: false    # true = 本机免登录，只挡外网
     sessionDays: 7       # 会话有效期（天）
@@ -179,7 +179,7 @@ DSH 的 HTTP 服务没有全局中间件，只有四张路由表（`exact` / `pr
 插件在激活时**把每个 handler 包一层**，请求进来先过门禁，通过后补上 DSH 自己的 cookie 和 Host，再交给原 handler。
 
 ```
-浏览器 → [dsh-auth-gate] → DSH
+浏览器 → [dsh-login-gate] → DSH
             ├─ /__auth/*  自己处理
             ├─ 未登录     302 登录页 / 401
             └─ 已登录     注入 cookie + 重写 Host → 原 handler
@@ -197,6 +197,16 @@ DSH 的 HTTP 服务没有全局中间件，只有四张路由表（`exact` / `pr
 - 依赖 `~/.dsh/.credentials.yaml` 的 `browser-session` secret 代签 cookie。
 - 限流是进程内内存，重启清零。
 - 安装后需要重启 DSH 才生效。
+
+---
+
+## 相关项目
+
+- [TecFancy/dsh-auth-gate](https://github.com/TecFancy/dsh-auth-gate) —— 先出现的同名插件（已发布 npm）。
+  功能更全：TOTP 双因素、共享令牌登录、用户管理 CLI。
+
+本项目的取舍不同：**不引入第二因素**，专注"暴露到公网要有一道密码"这一件事，
+并把**首次设置、忘记密码**做成网页闭环（不需要命令行），密码用 scrypt + Windows DPAPI 存储。
 
 ---
 
@@ -218,7 +228,7 @@ npm run preview
 ## 目录
 
 ```
-dsh-auth-gate/
+dsh-login-gate/
 ├─ index.js          cordis 插件：包装路由表
 ├─ gate.js           门禁核心：会话 / 密码 / 页面 / 限流
 ├─ dpapi.js          Windows DPAPI 封装
